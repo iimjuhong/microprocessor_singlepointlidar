@@ -1,4 +1,4 @@
-# 🔭 Single-Point LiDAR 3D Scanner
+# Single-Point LiDAR 3D Scanner
 
 > Arduino + TFmini LiDAR 센서를 이용한 360° 3D 포인트 클라우드 스캐너  
 > 하드웨어 레지스터 직접 제어 · 칼만 필터 · PID 제어 · 포인트 클라우드 후처리 · Poisson Surface Reconstruction · Three.js 웹 뷰어
@@ -9,7 +9,7 @@ Z-Buffer 고스트 제거 → 적응형 SOR 필터 → 빈 공간 보간 → 재
 
 ---
 
-## 📐 시스템 아키텍처
+## 시스템 아키텍처
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -30,7 +30,7 @@ Z-Buffer 고스트 제거 → 적응형 SOR 필터 → 빈 공간 보간 → 재
 └─────────────────────────────────────────────────────────────┘
 ```
 
-## 📂 프로젝트 구조
+## 프로젝트 구조
 
 ```
 project/
@@ -49,7 +49,7 @@ project/
 
 ---
 
-## 🔌 1. 임베디드 하드웨어 제어 (Arduino / C++)
+## 1. 임베디드 하드웨어 제어 (Arduino / C++)
 
 아두이노의 `Serial`, `analogWrite` 등의 기본 라이브러리를 사용하지 않고, ATmega328P의 **하드웨어 레지스터를 직접 조작**하여 16MHz 칩에서 로봇 공학 수준의 리얼타임 제어를 구현했습니다.
 
@@ -177,7 +177,7 @@ IDLE → MOVING_PITCH → SPINNING_YAW → MOVING_PITCH → ... → FINISHED
 
 ---
 
-## 🐍 2. 실시간 스캔 수집 소프트웨어 (Python)
+## 2. 실시간 스캔 수집 소프트웨어 (Python)
 
 ### 2-1. 칼만 필터 (Kalman Filter) — 엔코더 노이즈 제거
 
@@ -260,7 +260,7 @@ while not stop_event.is_set():
 
 ---
 
-## 🧹 3. 포인트 클라우드 후처리 파이프라인
+## 3. 포인트 클라우드 후처리 파이프라인
 
 원시 스캔 데이터에서 노이즈를 제거하고, 빈 공간을 채우고, 재질을 분류하는 **다단계 필터링 파이프라인**입니다.
 
@@ -293,8 +293,8 @@ scan_points.csv
 
 ```python
 # 3D 구면 좌표를 (yaw, pitch) 격자로 이산화
-yaw_idx = np.round(yaw / 1.0°)
-pitch_idx = np.round(pitch / 0.5°)
+yaw_idx = np.round(yaw / 1.0)
+pitch_idx = np.round(pitch / 0.5)
 cell_key = yaw_idx * 1,000,000 + pitch_idx   # 고유 격자 키 생성
 
 # 동일 격자 내에서 센서와 가장 가까운 점(= 진짜 표면) 1개만 보존
@@ -321,10 +321,10 @@ adaptive_voxel = clip(0.5 * ratio, 0.2, 5.0)              # 복셀 크기 비례
 
 | 단계 | 알고리즘 | 설명 |
 |------|----------|------|
-| **① Voxel Downsampling** | `voxel_down_sample(size)` | 공간을 정육면체 큐브로 쪼개 각 큐브 내의 점들을 좌표 평균으로 1개로 합침 → 밀도 균일화 |
-| **② Statistical Outlier Removal** | `remove_statistical_outlier(k, std)` | 각 점의 K-Nearest Neighbors 거리 분포를 정규분포로 피팅, 평균+std_ratio×σ 이상 떨어진 점 제거 |
-| **③ Radius Outlier Removal** | `remove_radius_outlier(4, 3.0)` | 반경 3.0cm 내에 이웃 점이 4개 미만인 고립점 제거 |
-| **④ 원본 매핑** | `scipy.spatial.cKDTree` | 복셀화로 이동된 좌표를 KD-Tree로 원본 CSV 좌표에 매칭하여 순정 좌표 복원 |
+| **1. Voxel Downsampling** | `voxel_down_sample(size)` | 공간을 정육면체 큐브로 쪼개 각 큐브 내의 점들을 좌표 평균으로 1개로 합침 → 밀도 균일화 |
+| **2. Statistical Outlier Removal** | `remove_statistical_outlier(k, std)` | 각 점의 K-Nearest Neighbors 거리 분포를 정규분포로 피팅, 평균+std_ratio×σ 이상 떨어진 점 제거 |
+| **3. Radius Outlier Removal** | `remove_radius_outlier(4, 3.0)` | 반경 3.0cm 내에 이웃 점이 4개 미만인 고립점 제거 |
+| **4. 원본 매핑** | `scipy.spatial.cKDTree` | 복셀화로 이동된 좌표를 KD-Tree로 원본 CSV 좌표에 매칭하여 순정 좌표 복원 |
 
 ### 3-3. 빈 공간 무조건 채우기 (Spherical Hole Fill)
 
@@ -332,8 +332,8 @@ adaptive_voxel = clip(0.5 * ratio, 0.2, 5.0)              # 복셀 크기 비례
 
 ```python
 # 360° Wrap-around 처리: 0°와 360°의 데이터를 좌우로 복제
-pts_left[:, 0] -= 360° / yaw_bin    # -360° 복제
-pts_right[:, 0] += 360° / yaw_bin   # +360° 복제
+pts_left[:, 0] -= 360 / yaw_bin    # -360° 복제
+pts_right[:, 0] += 360 / yaw_bin   # +360° 복제
 all_pts = np.vstack([pts, pts_left, pts_right])
 
 # Delaunay 삼각분할 기반 선형 보간으로 빈 격자 채움
@@ -368,16 +368,16 @@ K-Means 같은 클러스터링으로 그룹 개수를 고정하는 대신, **데
 
 | 패널 | 내용 |
 |------|------|
-| **① Original + Outliers** | 살아남은 점(고도 그라데이션) + 제거된 이상치(빨간 X 마커) |
-| **② Filtered + Bounding Box** | 반사 강도 보정 컬러맵(magma) + AABB 와이어프레임 + 가로×세로×높이 치수 |
-| **③ Material Segmentation** | 동적 Peak Detection으로 분류된 재질 레이어별 컬러 + 범례 |
-| **④ Voxel Occupancy Grid** | 1.5cm 단위 정육면체 격자로 공간 점유 시각화 (로봇 경로 탐색 기초) |
-| **⑤ Poisson Surface Mesh** | 법선 추정 → 포아송 표면 재구성 → 삼각형 폴리곤 렌더링 |
-| **⑥ Cross Section** | 특정 Z 높이에서 ±0.5cm 슬라이스한 2D 단면 프로파일 |
+| **1. Original + Outliers** | 살아남은 점(고도 그라데이션) + 제거된 이상치(빨간 X 마커) |
+| **2. Filtered + Bounding Box** | 반사 강도 보정 컬러맵(magma) + AABB 와이어프레임 + 가로×세로×높이 치수 |
+| **3. Material Segmentation** | 동적 Peak Detection으로 분류된 재질 레이어별 컬러 + 범례 |
+| **4. Voxel Occupancy Grid** | 1.5cm 단위 정육면체 격자로 공간 점유 시각화 (로봇 경로 탐색 기초) |
+| **5. Poisson Surface Mesh** | 법선 추정 → 포아송 표면 재구성 → 삼각형 폴리곤 렌더링 |
+| **6. Cross Section** | 특정 Z 높이에서 ±0.5cm 슬라이스한 2D 단면 프로파일 |
 
 ---
 
-## 🧊 4. 3D 메쉬 생성 (Poisson Surface Reconstruction)
+## 4. 3D 메쉬 생성 (Poisson Surface Reconstruction)
 
 필터링된 포인트 클라우드를 매끄러운 3D 표면 메쉬로 변환합니다.
 
@@ -400,7 +400,7 @@ mesh.remove_vertices_by_mask(densities < density_threshold)
 
 ---
 
-## 🌐 5. 웹 기반 3D 뷰어 (Three.js + WebGL)
+## 5. 웹 기반 3D 뷰어 (Three.js + WebGL)
 
 `viewer.html`은 생성된 `mesh.obj`를 웹 브라우저에서 인터랙티브하게 볼 수 있는 Three.js 기반 웹앱입니다.
 
@@ -415,7 +415,7 @@ mesh.remove_vertices_by_mask(densities < density_threshold)
 
 ---
 
-## 🚀 사용 방법
+## 사용 방법
 
 ### 1. 필요 패키지 설치
 
@@ -470,7 +470,7 @@ python -m http.server 8000
 
 ---
 
-## ⚙️ 주요 파라미터
+## 주요 파라미터
 
 ### 스캔 수집 (`arduino_3d.py`)
 
@@ -498,7 +498,7 @@ python -m http.server 8000
 
 ---
 
-## 🛠 하드웨어 구성
+## 하드웨어 구성
 
 | 부품 | 모델 | 역할 | 연결 |
 |------|------|------|------|
@@ -510,7 +510,7 @@ python -m http.server 8000
 
 ---
 
-## 📊 기술 스택 요약
+## 기술 스택 요약
 
 ```
 ┌──────────────┬──────────────────────────────────────────────────┐
@@ -545,4 +545,6 @@ python -m http.server 8000
 
 ---
 
+## 라이선스
 
+이 프로젝트는 학술·교육 목적으로 제작되었습니다.
