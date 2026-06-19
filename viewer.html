@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LiDAR 3D Poisson Surface Mesh Viewer</title>
+    <meta name="description" content="Interactive 3D viewer for LiDAR Poisson Surface Mesh reconstruction - 360° rotation">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #0a0a0f;
+            color: #e0e0e8;
+            overflow: hidden;
+            height: 100vh;
+            width: 100vw;
+        }
+        #canvas-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+        canvas {
+            display: block;
+        }
+        /* ── Header overlay ── */
+        .header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 100;
+            padding: 20px 32px;
+            background: linear-gradient(180deg, rgba(10,10,15,0.95) 0%, rgba(10,10,15,0.7) 60%, transparent 100%);
+            pointer-events: none;
+        }
+        .header h1 {
+            font-size: 22px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #60a5fa, #a78bfa, #f472b6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            letter-spacing: -0.5px;
+            margin-bottom: 4px;
+        }
+        .header p {
+            font-size: 13px;
+            color: rgba(160,170,200,0.8);
+            font-weight: 400;
+        }
+        /* ── Controls panel ── */
+        .controls {
+            position: fixed;
+            top: 90px;
+            right: 24px;
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .ctrl-btn {
+            width: 44px;
+            height: 44px;
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 12px;
+            background: rgba(20,20,35,0.85);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            color: #a0a8c0;
+            font-size: 18px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+        }
+        .ctrl-btn:hover {
+            background: rgba(96,165,250,0.15);
+            border-color: rgba(96,165,250,0.3);
+            color: #60a5fa;
+            transform: scale(1.05);
+        }
+        .ctrl-btn.active {
+            background: rgba(96,165,250,0.2);
+            border-color: rgba(96,165,250,0.4);
+            color: #60a5fa;
+        }
+        /* ── Info panel ── */
+        .info-panel {
+            position: fixed;
+            bottom: 24px;
+            left: 24px;
+            z-index: 100;
+            background: rgba(15,15,25,0.85);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255,255,255,0.06);
+            border-radius: 16px;
+            padding: 20px 24px;
+            min-width: 260px;
+        }
+        .info-panel h3 {
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: rgba(160,170,200,0.6);
+            margin-bottom: 12px;
+        }
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 5px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.03);
+        }
+        .info-row:last-child {
+            border-bottom: none;
+        }
+        .info-label {
+            font-size: 12px;
+            color: rgba(160,170,200,0.7);
+        }
+        .info-value {
+            font-size: 13px;
+            font-weight: 600;
+            color: #60a5fa;
+            font-variant-numeric: tabular-nums;
+        }
+        /* ── Loading ── */
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            z-index: 1000;
+            background: #0a0a0f;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            transition: opacity 0.6s ease;
+        }
+        .loading-overlay.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+        .spinner {
+            width: 48px;
+            height: 48px;
+            border: 3px solid rgba(96,165,250,0.15);
+            border-top-color: #60a5fa;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .loading-text {
+            margin-top: 20px;
+            font-size: 14px;
+            color: rgba(160,170,200,0.7);
+            letter-spacing: 0.5px;
+        }
+        .loading-progress {
+            margin-top: 12px;
+            width: 200px;
+            height: 3px;
+            background: rgba(96,165,250,0.1);
+            border-radius: 2px;
+            overflow: hidden;
+        }
+        .loading-progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #60a5fa, #a78bfa);
+            border-radius: 2px;
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+        /* ── Controls help ── */
+        .help-panel {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            z-index: 100;
+            display: flex;
+            gap: 16px;
+        }
+        .help-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 11px;
+            color: rgba(160,170,200,0.45);
+        }
+        .help-key {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2px 6px;
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 4px;
+            font-size: 10px;
+            color: rgba(160,170,200,0.5);
+            background: rgba(20,20,35,0.6);
+        }
+        /* ── Color legend ── */
+        .color-legend {
+            position: fixed;
+            left: 24px;
+            top: 50%;
+            transform: translateY(-50%);
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+        }
+        .legend-bar {
+            width: 8px;
+            height: 180px;
+            border-radius: 4px;
+            background: linear-gradient(
+                to top,
+                rgb(13, 13, 77),
+                rgb(13, 90, 128),
+                rgb(38, 179, 102),
+                rgb(179, 217, 38),
+                rgb(255, 242, 26)
+            );
+            border: 1px solid rgba(255,255,255,0.06);
+        }
+        .legend-label {
+            font-size: 10px;
+            color: rgba(160,170,200,0.5);
+            font-weight: 500;
+        }
+        /* ── Auto-rotate indicator ── */
+        .auto-rotate-badge {
+            position: fixed;
+            top: 90px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 100;
+            padding: 6px 16px;
+            background: rgba(96,165,250,0.12);
+            border: 1px solid rgba(96,165,250,0.2);
+            border-radius: 20px;
+            font-size: 11px;
+            color: #60a5fa;
+            letter-spacing: 0.5px;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            pointer-events: none;
+        }
+        .auto-rotate-badge.visible {
+            opacity: 1;
+        }
+    </style>
+</head>
+<body>
+    <div class="loading-overlay" id="loading">
+        <div class="spinner"></div>
+        <div class="loading-text">Loading Poisson Surface Mesh...</div>
+        <div class="loading-progress">
+            <div class="loading-progress-bar" id="progress-bar"></div>
+        </div>
+    </div>
+    <div class="header">
+        <h1>LiDAR Poisson Surface Mesh</h1>
+        <p>Single Point LiDAR 3D Scanner — Interactive Viewer</p>
+    </div>
+    <div id="canvas-container"></div>
+    <div class="controls">
+        <button class="ctrl-btn" id="btn-rotate" title="Auto Rotate (R)">↻</button>
+        <button class="ctrl-btn" id="btn-wireframe" title="Wireframe (W)">◇</button>
+        <button class="ctrl-btn" id="btn-reset" title="Reset View (Home)">⌂</button>
+        <button class="ctrl-btn" id="btn-grid" title="Toggle Grid (G)">▦</button>
+    </div>
+    <div class="auto-rotate-badge" id="rotate-badge">Auto Rotating</div>
+    <div class="color-legend">
+        <span class="legend-label" id="legend-max">Z max</span>
+        <div class="legend-bar"></div>
+        <span class="legend-label" id="legend-min">Z min</span>
+    </div>
+    <div class="info-panel">
+        <h3>Mesh Info</h3>
+        <div class="info-row">
+            <span class="info-label">Vertices</span>
+            <span class="info-value" id="info-vertices">—</span>
+        </div>
+        <div class="info-row">
+            <span class="info-label">Triangles</span>
+            <span class="info-value" id="info-triangles">—</span>
+        </div>
+        <div class="info-row">
+            <span class="info-label">Size (X)</span>
+            <span class="info-value" id="info-size-x">—</span>
+        </div>
+        <div class="info-row">
+            <span class="info-label">Size (Y)</span>
+            <span class="info-value" id="info-size-y">—</span>
+        </div>
+        <div class="info-row">
+            <span class="info-label">Height (Z)</span>
+            <span class="info-value" id="info-size-z">—</span>
+        </div>
+    </div>
+    <div class="help-panel">
+        <div class="help-item"><span class="help-key">Drag</span> Rotate</div>
+        <div class="help-item"><span class="help-key">Scroll</span> Zoom</div>
+        <div class="help-item"><span class="help-key">Right Drag</span> Pan</div>
+        <div class="help-item"><span class="help-key">R</span> Auto-rotate</div>
+        <div class="help-item"><span class="help-key">W</span> Wireframe</div>
+    </div>
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/"
+        }
+    }
+    </script>
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        // ── Globals ──
+        let scene, camera, renderer, controls;
+        let meshObject = null;
+        let gridHelper = null;
+        let autoRotate = true;
+        let wireframeMode = false;
+        let showGrid = true;
+        // ── Init ──
+        function init() {
+            const container = document.getElementById('canvas-container');
+            // Scene
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x0a0a0f);
+            scene.fog = new THREE.FogExp2(0x0a0a0f, 0.003);
+            // Camera
+            camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(40, 30, 50);
+            // Renderer
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            renderer.toneMapping = THREE.ACESFilmicToneMapping;
+            renderer.toneMappingExposure = 1.2;
+            container.appendChild(renderer.domElement);
+            // Controls
+            controls = new OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.autoRotate = true;
+            controls.autoRotateSpeed = 1.5;
+            controls.minDistance = 10;
+            controls.maxDistance = 200;
+            controls.maxPolarAngle = Math.PI * 0.85;
+            // Lights
+            const ambientLight = new THREE.AmbientLight(0x404060, 0.6);
+            scene.add(ambientLight);
+            const dirLight1 = new THREE.DirectionalLight(0x60a5fa, 1.0);
+            dirLight1.position.set(30, 50, 30);
+            dirLight1.castShadow = true;
+            scene.add(dirLight1);
+            const dirLight2 = new THREE.DirectionalLight(0xa78bfa, 0.5);
+            dirLight2.position.set(-20, 30, -20);
+            scene.add(dirLight2);
+            const dirLight3 = new THREE.DirectionalLight(0xf472b6, 0.3);
+            dirLight3.position.set(0, -10, 40);
+            scene.add(dirLight3);
+            // Hemisphere light for natural feel
+            const hemiLight = new THREE.HemisphereLight(0x60a5fa, 0x2a1a3e, 0.4);
+            scene.add(hemiLight);
+            // Grid
+            gridHelper = new THREE.GridHelper(80, 40, 0x1a1a2e, 0x111122);
+            gridHelper.position.y = 0;
+            scene.add(gridHelper);
+            // Events
+            window.addEventListener('resize', onResize);
+            setupControls();
+            // Load mesh
+            loadOBJ();
+            // Start render loop
+            animate();
+        }
+        // ── Parse OBJ with vertex colors (v x y z r g b) ──
+        async function loadOBJ() {
+            const progressBar = document.getElementById('progress-bar');
+            progressBar.style.width = '10%';
+            try {
+                const response = await fetch('mesh.obj');
+                const reader = response.body.getReader();
+                const contentLength = +response.headers.get('Content-Length') || 0;
+                let receivedLength = 0;
+                const chunks = [];
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    chunks.push(value);
+                    receivedLength += value.length;
+                    if (contentLength > 0) {
+                        const pct = Math.min(60, Math.round((receivedLength / contentLength) * 60));
+                        progressBar.style.width = (10 + pct) + '%';
+                    }
+                }
+                const allChunks = new Uint8Array(receivedLength);
+                let position = 0;
+                for (const chunk of chunks) {
+                    allChunks.set(chunk, position);
+                    position += chunk.length;
+                }
+                const text = new TextDecoder().decode(allChunks);
+                progressBar.style.width = '75%';
+                // Parse
+                const lines = text.split('\n');
+                const vertices = [];
+                const colors = [];
+                const normals = [];
+                const faceIndices = [];
+                for (let i = 0; i < lines.length; i++) {
+                    const line = lines[i].trim();
+                    if (line.startsWith('v ')) {
+                        const parts = line.substring(2).trim().split(/\s+/);
+                        vertices.push(parseFloat(parts[0]), parseFloat(parts[1]), parseFloat(parts[2]));
+                        if (parts.length >= 6) {
+                            colors.push(parseFloat(parts[3]), parseFloat(parts[4]), parseFloat(parts[5]));
+                        }
+                    } else if (line.startsWith('vn ')) {
+                        const parts = line.substring(3).trim().split(/\s+/);
+                        normals.push(parseFloat(parts[0]), parseFloat(parts[1]), parseFloat(parts[2]));
+                    } else if (line.startsWith('f ')) {
+                        const parts = line.substring(2).trim().split(/\s+/);
+                        // Support f v//vn format
+                        const indices = parts.map(p => parseInt(p.split('/')[0]) - 1);
+                        if (indices.length === 3) {
+                            faceIndices.push(indices[0], indices[1], indices[2]);
+                        } else if (indices.length === 4) {
+                            faceIndices.push(indices[0], indices[1], indices[2]);
+                            faceIndices.push(indices[0], indices[2], indices[3]);
+                        }
+                    }
+                }
+                progressBar.style.width = '90%';
+                // Build geometry
+                const geometry = new THREE.BufferGeometry();
+                const positionArray = new Float32Array(vertices);
+                geometry.setAttribute('position', new THREE.BufferAttribute(positionArray, 3));
+                if (colors.length === vertices.length) {
+                    geometry.setAttribute('color', new THREE.BufferAttribute(new Float32Array(colors), 3));
+                }
+                if (normals.length === vertices.length) {
+                    geometry.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(normals), 3));
+                }
+                geometry.setIndex(faceIndices);
+                if (normals.length !== vertices.length) {
+                    geometry.computeVertexNormals();
+                }
+                // Material
+                const material = new THREE.MeshPhongMaterial({
+                    vertexColors: colors.length > 0,
+                    color: colors.length > 0 ? 0xffffff : 0x60a5fa,
+                    shininess: 60,
+                    specular: 0x222244,
+                    side: THREE.DoubleSide,
+                    flatShading: false,
+                });
+                meshObject = new THREE.Mesh(geometry, material);
+                // Center the mesh
+                geometry.computeBoundingBox();
+                const box = geometry.boundingBox;
+                const center = new THREE.Vector3();
+                box.getCenter(center);
+                // Shift so bottom sits on y=0 and center is at origin
+                meshObject.position.set(-center.x, -box.min.z, -center.z);
+                // Rotate so Z-up becomes Y-up for Three.js
+                const meshGroup = new THREE.Group();
+                meshGroup.add(meshObject);
+                // The OBJ data has Z as height, but in our case
+                // let's swap Y and Z by rotating -90 around X
+                meshGroup.rotation.x = -Math.PI / 2;
+                scene.add(meshGroup);
+                // Recalculate bounding box after transformation
+                const worldBox = new THREE.Box3().setFromObject(meshGroup);
+                const worldCenter = new THREE.Vector3();
+                worldBox.getCenter(worldCenter);
+                const worldSize = new THREE.Vector3();
+                worldBox.getSize(worldSize);
+                // Position camera
+                const maxDim = Math.max(worldSize.x, worldSize.y, worldSize.z);
+                camera.position.set(maxDim * 1.2, maxDim * 0.8, maxDim * 1.2);
+                controls.target.copy(worldCenter);
+                controls.update();
+                // Update grid position
+                gridHelper.position.y = worldBox.min.y;
+                // Update info panel
+                const nVerts = vertices.length / 3;
+                const nTris = faceIndices.length / 3;
+                document.getElementById('info-vertices').textContent = nVerts.toLocaleString();
+                document.getElementById('info-triangles').textContent = nTris.toLocaleString();
+                document.getElementById('info-size-x').textContent = worldSize.x.toFixed(1) + ' cm';
+                document.getElementById('info-size-y').textContent = worldSize.z.toFixed(1) + ' cm';
+                document.getElementById('info-size-z').textContent = worldSize.y.toFixed(1) + ' cm';
+                // Update legend
+                document.getElementById('legend-max').textContent = box.max.z.toFixed(1) + ' cm';
+                document.getElementById('legend-min').textContent = box.min.z.toFixed(1) + ' cm';
+                progressBar.style.width = '100%';
+                // Hide loading
+                setTimeout(() => {
+                    document.getElementById('loading').classList.add('hidden');
+                    document.getElementById('rotate-badge').classList.add('visible');
+                }, 400);
+            } catch (err) {
+                console.error('Failed to load mesh:', err);
+                document.querySelector('.loading-text').textContent = 'Failed to load mesh: ' + err.message;
+            }
+        }
+        // ── Controls setup ──
+        function setupControls() {
+            const btnRotate = document.getElementById('btn-rotate');
+            const btnWireframe = document.getElementById('btn-wireframe');
+            const btnReset = document.getElementById('btn-reset');
+            const btnGrid = document.getElementById('btn-grid');
+            const rotateBadge = document.getElementById('rotate-badge');
+            btnRotate.classList.add('active');
+            btnRotate.addEventListener('click', () => {
+                autoRotate = !autoRotate;
+                controls.autoRotate = autoRotate;
+                btnRotate.classList.toggle('active', autoRotate);
+                rotateBadge.classList.toggle('visible', autoRotate);
+            });
+            btnWireframe.addEventListener('click', () => {
+                wireframeMode = !wireframeMode;
+                if (meshObject) {
+                    meshObject.material.wireframe = wireframeMode;
+                }
+                btnWireframe.classList.toggle('active', wireframeMode);
+            });
+            btnReset.addEventListener('click', () => {
+                if (meshObject) {
+                    const worldBox = new THREE.Box3().setFromObject(meshObject.parent);
+                    const worldCenter = new THREE.Vector3();
+                    worldBox.getCenter(worldCenter);
+                    const worldSize = new THREE.Vector3();
+                    worldBox.getSize(worldSize);
+                    const maxDim = Math.max(worldSize.x, worldSize.y, worldSize.z);
+                    camera.position.set(maxDim * 1.2, maxDim * 0.8, maxDim * 1.2);
+                    controls.target.copy(worldCenter);
+                }
+            });
+            btnGrid.addEventListener('click', () => {
+                showGrid = !showGrid;
+                if (gridHelper) gridHelper.visible = showGrid;
+                btnGrid.classList.toggle('active', !showGrid);
+            });
+            // Keyboard shortcuts
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'r' || e.key === 'R') btnRotate.click();
+                if (e.key === 'w' || e.key === 'W') btnWireframe.click();
+                if (e.key === 'g' || e.key === 'G') btnGrid.click();
+                if (e.key === 'Home') btnReset.click();
+            });
+        }
+        // ── Resize ──
+        function onResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+        // ── Render loop ──
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+        // ── Start ──
+        init();
+    </script>
+</body>
+</html>
