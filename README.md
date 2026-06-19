@@ -8,6 +8,14 @@ Z-Buffer 고스트 제거 → 적응형 SOR 필터 → 빈 공간 보간 → 재
 웹 브라우저에서 실시간 3D 뷰잉이 가능한 **풀스택 프로젝트**
 
 ---
+<img width="950" height="691" alt="Image" src="https://github.com/user-attachments/assets/508d9cca-61f7-40f3-ae38-966e8280ded6" />
+<img width="671" height="438" alt="Image" src="https://github.com/user-attachments/assets/82f5d62b-2a32-489e-b3bf-f0eb471542fd" />
+<img width="431" height="405" alt="Image" src="https://github.com/user-attachments/assets/f85465eb-0a4c-4e7e-a9dc-21be06c1aba8" />
+<img width="531" height="460" alt="Image" src="https://github.com/user-attachments/assets/0e111a58-817d-417e-acf6-b3e66730909b" />
+<img width="531" height="375" alt="Image" src="https://github.com/user-attachments/assets/22821e1f-b706-4a01-a6a3-8a7bf55bef1a" />
+<img width="651" height="438" alt="Image" src="https://github.com/user-attachments/assets/d6da8ea2-b7ce-4470-97e8-d175f30a3381" />
+<img width="653" height="423" alt="Image" src="https://github.com/user-attachments/assets/cf4039d2-19c0-4319-a054-f1789e0b5afa" />
+<img width="288" height="384" alt="Image" src="https://github.com/user-attachments/assets/35e6492e-49d0-4f64-9779-98235c4ac61e" />
 
 ## 시스템 아키텍처
 
